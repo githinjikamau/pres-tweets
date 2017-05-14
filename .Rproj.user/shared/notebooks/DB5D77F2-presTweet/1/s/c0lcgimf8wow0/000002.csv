@@ -1,0 +1,21 @@
+"0","presTw <- read_csv(""presTweets.csv"",col_names = TRUE)"
+"2","Parsed with column specification:
+cols(
+  .default = col_character(),
+  user_id = col_integer(),
+  created_at = col_datetime(format = """"),
+  status_id = col_double(),
+  retweet_count = col_integer(),
+  favorite_count = col_integer(),
+  is_quote_status = col_logical(),
+  quote_status_id = col_double(),
+  is_retweet = col_logical(),
+  retweet_status_id = col_double(),
+  media_id = col_double()
+)
+"
+"2","See spec(...) for full column specifications.
+"
+"0","presTw <- janitor::remove_empty_cols(presTw)"
+"0","presTw <- as_tibble(presTw)"
+"0","head(presTw)"

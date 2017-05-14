@@ -1,0 +1,143 @@
+---
+title: "Analysis of The President's Tweets"
+output: html_notebook
+---
+
+
+
+While not quite a prolific twitter user as say US president Donald Trump, Uhuru Kenyatta is considered a digital president at least that is what he and his team protray him as. Stemming from this i decided to analyse some of his tweets to see if i could find any interesting tidbits or ~~features~~.  
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r load libraries, results='hide'}
+pack <- c("tidytext","tidyverse","rtweet","curl","wordcloud","RColorBrewer")
+suppressMessages(lapply(pack,library, character.only=T))
+rm(pack)
+```
+Using the R package Rtweet to access twitter's API, i obtained 3000 of the president's tweets and stored them in a csv file. 
+Tabulated below are the first 6 observations from the dataset.
+
+```{r get tweets, eval=FALSE}
+presTweets <- get_timeline("UKenyatta", n= 3000)
+presTweets <- janitor::remove_empty_cols(presTweets)
+write_csv(presTweets,"presTweets.csv")
+rm(presTweets)
+```
+
+```{r readInData}
+presTw <- read_csv("presTweets.csv",col_names = TRUE)
+presTw <- janitor::remove_empty_cols(presTw)
+presTw <- as_tibble(presTw)
+head(presTw)
+#Use Pandoc to create tabel?
+```
+
+##What hashtags does the president use?
+In the first part of this analysis i consider what hashtags the president uses if any at all.
+
+```{r hashtags}
+hashtags <- presTw$hashtags %>% unique() 
+hashtags <- drop_na(hashtags %>% as.data.frame(stringsAsFactors=F))
+head(hashtags %>% as_tibble(),8)
+
+```
+From the table above it is evident that some tweets contain several hashtags. Not quite evident is that hashtags from retweets are included in the hashtags column. As my focus in this case is specifically on hashtags by the president's account retweet hashtags are excluded.  
+To split the hashtags such that there is only one per row I shall use the tidytext package.
+
+
+```{r}
+Htags <- unnest_tokens(presTw,tags,hashtags,token = "words") %>% filter(!is_retweet==TRUE) %>% select(tags) %>% drop_na() %>% count(tags, sort=T)
+colnames(Htags) <- c("Hashtags","Tally")
+head(Htags,8)
+```
+By far the hashtag with the largest tally is 'ticadvi'. With a tally more than double the second placed hashtag. 
+Most of the hashtags in the top ten have something to do with summits or conferences. Reaffirming the huge state exenditure on hosting, catering etc. ~~Link to story on office of the president spending~~
+
+A better representation of the hashtags used by the president would be a wordcloud.  
+```{r tagsWordcloud}
+set.seed(1234)
+wordcloud(Htags$Hashtags,Htags$Tally,max.words = 100,min.freq = 1,colors = brewer.pal(6,"Dark2"),rot.per = 0.25)
+```
+
+##What are the most popular tweets by the president?
+
+To answer this, I shall use two metrics; the favourite count and the retweet count.
+Plotting a scatter plot it is clear there exists a strong correlation between the two metrics.
+```{r scatterPlot}
+pop <- presTw %>% filter(!is_retweet==TRUE) %>% select(text,favorite_count,retweet_count)
+ggplot(pop,aes(retweet_count,favorite_count)) +
+  geom_point(alpha=0.40) +
+  geom_smooth() +
+  labs(x="Retweet Count",y="Favorite Count") +
+  theme_minimal()
+```
+
+Next i take a look at the distribution of both the retweet count and the favorite count using a histogram. ~~frequency polygon better?~~
+
+
+```{r freqPoly}
+pop1 <- gather(pop,metric,tally,2:3)
+
+ggplot(pop1 , aes(tally,colour= metric)) +
+  geom_freqpoly(binwidth=15, size=1) +
+  scale_fill_manual(values = c("blue","red")) +
+  coord_cartesian(xlim = c(0,750)) +
+  labs(x=NULL,y="Count",colour="Metric",title="Distribution of Metrics") +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        legend.position = "none")
+```
+
+
+```{r histogram}
+ggplot(pop) +
+  geom_histogram(aes(favorite_count),binwidth=15,fill="mediumslateblue",alpha=0.6,colour="slategrey") +
+  geom_histogram(aes(retweet_count),binwidth=15,fill="firebrick3",alpha=0.6,colour="slategrey") +
+  coord_cartesian(xlim = c(0,750)) +
+  labs(x=NULL,y="Count",title="Distribution of Metrics") +
+  theme_minimal() +
+  annotate("text",x=180,y=365,label="Favorite Count",colour="firebrick3") +
+  annotate("text",x=280,y=165,label="Retweet Count",colour="mediumslateblue") +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()
+  )
+```
+
+```{r}
+pop2 <- pop %>% arrange(desc(favorite_count),desc(retweet_count))
+names(pop2) <- c("Text", "Favorite Count","Retweet Count")
+head(pop2,10)
+rm(pop2)
+```
+
+```{r popular words }
+#Remove links from tweets
+pop_tidy <- pop 
+pop_tidy$text <- gsub('http.*\\s*', '', pop_tidy$text)
+pop_tidy <- pop_tidy %>% unnest_tokens(word,text) %>% anti_join(stop_words, by="word") %>% count(word,sort=TRUE)
+names(pop_tidy) <- c("Word","Tally")
+head(pop_tidy,10)
+```
+Find an algorithm for stemming the words for a more thorough analysis.  
+
+Not surprisingly "Kenya" is the most used word by the President's twitter page. No doubt that the post referendum period specifically after the 2013 general election the devolved system of government has come to dominate the conversation. Ranking at the fourth most used word by the President.  
+
+Yet again its best to visualise this data using a wordcloud. 
+
+```{r}
+set.seed(1234)
+wordcloud(pop_tidy$Word, scale(pop_tidy$Tally, center = T, scale = T),max.words = 100, colors = brewer.pal(6,"Dark2"), min.freq = 3)
+```
+
+
+## Other Questions
+* Device used by the president to tweet.
+    + Does it have any impact on sentiment of the tweet?
+* When(time) does the president tweet?
+* Linear regression of fav count and retweet count.
+* Does the president use emoji?
+    + If so, which is his most used emoji?
+    + Are the sentiments in the emoji tweet positive or negative?
+
